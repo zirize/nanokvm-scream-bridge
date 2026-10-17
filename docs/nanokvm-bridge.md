@@ -36,6 +36,22 @@ Recovery without network: put the SD card in a PC and delete that file.
 - Device has `arecord`, `python3`, `setsid`, `logger`, `killall`; **no `timeout`** and no
   `/usr/local/bin` until the installer creates it.
 
+## Latency budget
+
+Estimated per stage (not an end-to-end measurement):
+
+| Stage | Approx. | Note |
+|---|---|---|
+| Phone USB output path | 20-40 ms | Android side, not adjustable |
+| `arecord` period + packet | ~27 ms | period 1024 frames (21 ms) + 288-frame packet (6 ms) |
+| LAN | <1 ms | no backlog seen in the receiver's socket queue |
+| Scream receiver + PipeWire | 20-50 ms | receiver target latency 20 ms |
+| Bluetooth A2DP (SBC) on the PC | 150-250 ms | dominant term when the PC plays to a Bluetooth headset |
+
+In practice, noticeable lag came from the PC's Bluetooth output. Use a wired sink when latency
+matters. Untried option if Bluetooth must stay: `arecord --period-size=256 --buffer-size=2048`
+in `S04usbaudio` saves roughly 15 ms.
+
 ## Traps
 
 - `S03usbdev` is a firmware file; it is not modified. The NanoKVM web app re-runs it when USB
