@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Hear your phone on your PC: a NanoKVM as a USB speaker that forwards audio over Scream</title>
+<meta name="description" content="Turn a Sipeed NanoKVM into a USB speaker for an Android phone and forward everything the phone plays, bit for bit, as Scream UDP packets to a receiver on your PC. 48 kHz 16-bit stereo PCM over the LAN, no Bluetooth, no re-encoding, two small scripts." />
+<meta name="author" content="zirize" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://zirize.github.io/nanokvm-scream-bridge/" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://zirize.github.io/nanokvm-scream-bridge/" />
+<meta property="og:title" content="Hear your phone on your PC through a NanoKVM and Scream" />
+<meta property="og:description" content="A NanoKVM pretends to be wired headphones for your phone and sends the PCM, unchanged, to a Scream receiver on your PC." />
+<meta name="twitter:card" content="summary" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Hear your phone on your PC: a NanoKVM as a USB speaker that forwards audio over Scream",
+  "description": "How to make a Sipeed NanoKVM a USB Audio Class 1 speaker for a phone with Linux configfs, and forward the captured PCM as Scream UDP packets to a PC, without resampling or re-encoding.",
+  "url": "https://zirize.github.io/nanokvm-scream-bridge/",
+  "author": { "@type": "Person", "name": "zirize", "url": "https://github.com/zirize" },
+  "about": ["Sipeed NanoKVM", "Scream", "USB gadget", "configfs", "UAC1", "USB audio", "Android", "network audio", "PCM", "arecord"]
+}
+</script>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--border:#2d3148;--accent:#7c6af7;--accent2:#56c8a0;--text:#e2e4ef;--muted:#8b90b0;--radius:10px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px;min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+header{background:linear-gradient(135deg,#1a1d27 0%,#12141e 100%);border-bottom:1px solid var(--border);padding:56px 20px 44px;text-align:center}
+header h1{font-size:clamp(1.6rem,4vw,2.4rem);font-weight:700;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
+header p{font-size:1.05rem;color:var(--muted);max-width:620px;margin:0 auto 22px}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btns a{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:.9rem;font-weight:500}
+.btns a:hover{text-decoration:none;border-color:var(--accent)}
+.btns a.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+main{max-width:820px;margin:0 auto;padding:48px 20px;flex:1}
+h2{font-size:1.35rem;margin:44px 0 14px;color:var(--text)}
+h2:first-child{margin-top:0}
+h3{font-size:1.05rem;margin:28px 0 10px;color:var(--accent2)}
+p{margin-bottom:14px;color:var(--text)}
+ul,ol{margin:0 0 16px 22px}
+li{margin-bottom:8px}
+code{font-family:ui-monospace,'Cascadia Code',Menlo,monospace;font-size:.88em;background:#12141e;border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+pre{background:#12141e;border:1px solid var(--border);border-radius:var(--radius);padding:16px;overflow-x:auto;margin-bottom:16px}
+pre code{background:none;border:none;padding:0;font-size:.85rem;line-height:1.6}
+table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:.92rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.82rem;text-transform:uppercase;letter-spacing:.5px}
+.symptoms{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent2);border-radius:var(--radius);padding:20px 24px 8px;margin-bottom:8px}
+.note{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:.93rem;color:var(--muted)}
+.note strong{color:var(--text)}
+footer{text-align:center;padding:32px 20px;border-top:1px solid var(--border);color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>Hear your phone on your PC</h1>
+  <p>Plug the phone into a NanoKVM. The phone sees wired headphones; the NanoKVM sends every sample, unchanged, over the LAN to a Scream receiver on your PC.</p>
+  <div class="btns">
+    <a class="primary" href="https://github.com/zirize/nanokvm-scream-bridge">Repository on GitHub</a>
+    <a href="https://github.com/zirize/nanokvm-scream-bridge/blob/main/docs/nanokvm-bridge.md">How it works</a>
+  </div>
+</header>
+<main>
+
+<div class="symptoms">
+<p>This is for you if:</p>
+<ul>
+<li>You want a phone's sound — a game, a video, a music app — to come out of your <strong>PC's speakers or headset</strong>, and you already listen to everything else there.</li>
+<li><strong>Bluetooth</strong> to the PC adds latency and re-encodes the audio with a lossy codec, and the PC may not even have Bluetooth.</li>
+<li>A <strong>cable from the headphone jack</strong> into the PC's line-in hums, needs a free input, and most phones no longer have the jack.</li>
+<li>You already run <a href="https://github.com/duncanthrax/scream">Scream</a> for a virtual machine or another computer and would like the phone to be <strong>one more Scream source</strong>.</li>
+<li>You have a <strong>NanoKVM sitting idle</strong>.</li>
+</ul>
+</div>
+
+<h2>What it does</h2>
+
+<pre><code>phone ──USB-C (UAC1 speaker)──▶ NanoKVM ──Scream UDP, wired LAN──▶ PC receiver ──▶ speakers</code></pre>
+
+<p>The NanoKVM's USB-C port is normally a USB <em>device</em> — keyboard, mouse and virtual disk for the computer it controls. The kernel can also present that port as a <strong>USB Audio Class 1 speaker</strong>. Android accepts it as wired headphones and routes all audio there.</p>
+
+<p>On the NanoKVM, <code>arecord</code> reads what the phone plays (48&nbsp;kHz, 16-bit, stereo) and a 40-line Python script wraps each 288 frames in a Scream header and sends it as one UDP packet. Any Scream receiver plays it: the Unix receiver from <a href="https://github.com/duncanthrax/scream">duncanthrax/scream</a>, or <a href="https://zirize.github.io/pipewire-scream/">pipewire-scream</a>.</p>
+
+<p>Nothing is resampled or re-encoded on the way. A 50-second capture produced 166.7 packets per second — exactly 48&nbsp;kHz — and the sample values reach the PC as the phone produced them.</p>
+
+<h2>Setup</h2>
+
+<p>You need a NanoKVM reachable as <code>root@&lt;host&gt;</code> over ssh with a key, a Scream receiver on the PC listening on a UDP port (4015 below) that the firewall lets in from the LAN, and a USB-C cable from the phone to the NanoKVM.</p>
+
+<pre><code>git clone https://github.com/zirize/nanokvm-scream-bridge
+cd nanokvm-scream-bridge
+tools/install-nanokvm.sh &lt;host&gt;                    # copy two files to the device, once
+KVM_HOST=&lt;host&gt; tools/kvm-mode audio &lt;pc-ip&gt;:4015  # switch to audio mode
+KVM_HOST=&lt;host&gt; tools/kvm-mode status
+KVM_HOST=&lt;host&gt; tools/kvm-mode kvm                  # back to the normal KVM</code></pre>
+
+<p>The mode switch takes effect immediately and survives a reboot: the destination is stored in <code>/boot/usb.audio</code>. To recover without the network, put the SD card in a computer and delete that file.</p>
+
+<div class="note"><strong>Audio mode replaces the KVM functions.</strong> The NanoKVM's USB controller has 8 endpoints and the stock gadget (three HID devices, virtual disk, RNDIS) already uses all of them, so the speaker cannot be added beside them. While in audio mode the NanoKVM is not a KVM.</div>
+
+<h2>How it stays up</h2>
+
+<p>An init script, <code>S04usbaudio</code>, runs after the firmware's own <code>S03usbdev</code> (which it never modifies). It rebuilds the gadget as a single UAC1 function and starts a supervisor that</p>
+<ul>
+<li>restarts the capture pipe whenever it ends — phone unplugged, card gone after a rebind;</li>
+<li>checks every 5 seconds whether the NanoKVM web app has rebuilt the stock gadget (it does when you toggle virtual disk or network settings) and switches it back to audio.</li>
+</ul>
+<p>Re-applying audio mode while it is already active does not re-enumerate the phone, so playback is not interrupted.</p>
+
+<h2>Things worth knowing</h2>
+<ul>
+<li><strong>Keep the phone at full volume.</strong> The phone scales the samples digitally; at low volume the stream peaked at &minus;50&nbsp;dBFS. Set loudness on the PC.</li>
+<li>When the gadget re-enumerates (reboot, mode switch) Android treats it as headphones being unplugged and <strong>pauses playback</strong>. Press play again.</li>
+<li>UAC1 on this kernel has <strong>no feedback endpoint</strong>: the phone's clock drives the stream and the receiver absorbs any drift.</li>
+<li>A phone on the USB-C port <strong>keeps the NanoKVM powered</strong>. To power-cycle it, remove both the phone and the power supply.</li>
+<li>The stock shutdown can hang in the NanoKVM's own service stop. Remount <code>/</code> and <code>/boot</code> read-only over ssh before pulling power.</li>
+</ul>
+
+<h2>Why not a USB-to-USB box</h2>
+
+<p>The first idea was a box that is a USB speaker to the phone and a USB microphone to the PC. That needs two USB device controllers, and the NanoKVM and the Raspberry Pi&nbsp;4 have one each. Two RP2040 boards linked by I2S, or an STM32 with two OTG cores, could do it bit-perfectly. Sending Scream to the PC needs only one controller and reuses receivers that already exist. The <a href="https://github.com/zirize/nanokvm-scream-bridge/blob/main/docs/hardware-options.md">hardware notes</a> cover that choice and moving the bridge to a Pi&nbsp;4 (power splitters, OTG charge adapters).</p>
+
+<h2>Tested on</h2>
+
+<p>A full NanoKVM (hardware <code>beta</code>, SG2002 RISC-V, firmware kernel 5.10.4) with one Android phone, sending to the Unix Scream receiver on a Linux PC. MIT licensed.</p>
+
+</main>
+<footer>
+  <p>Made by <a href="https://github.com/zirize">zirize</a> &middot; <a href="https://zirize.github.io/">More projects</a></p>
+</footer>
+</body>
+</html>

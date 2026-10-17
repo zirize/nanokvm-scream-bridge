@@ -1,11 +1,11 @@
 # nanokvm-scream-bridge
 
+📄 Project page: **[Hear your phone on your PC: a NanoKVM as a USB speaker that forwards audio over Scream](https://zirize.github.io/nanokvm-scream-bridge/)** · More projects: **[zirize.github.io](https://zirize.github.io/)**
+
 Hear your phone on your PC: plug the phone into a [Sipeed NanoKVM](https://github.com/sipeed/NanoKVM)
 and it shows up as a USB speaker (wired headphones on Android). Everything the phone plays is
 forwarded over the LAN as [Scream](https://github.com/duncanthrax/scream) UDP packets, so any
 Scream receiver on the PC plays it — 48 kHz / 16-bit stereo PCM, bit for bit, no re-encoding.
-
-More projects: **[zirize.github.io](https://zirize.github.io/)**
 
 ```
 phone --USB-C (UAC1 speaker)--> NanoKVM --Scream UDP, wired LAN--> PC Scream receiver --> speakers
