@@ -56,7 +56,21 @@ The firmware's own `/etc/init.d/S03usbdev` is never modified.
 - [docs/nanokvm-bridge.md](docs/nanokvm-bridge.md) — how it works, facts measured on the
   device (UAC1 only, endpoint budget, packet rate), and traps (shutdown hang, phone back-power).
 - [docs/hardware-options.md](docs/hardware-options.md) — why Scream instead of a USB-to-USB
-  bridge, and notes for moving it to a Raspberry Pi 4 (power splitter, OTG charge adapters).
+  bridge, and other hosts: Raspberry Pi 4 (USB-C power/data splitter), Pi Zero 2 W, Pico W
+  (TinyUSB firmware), and OTG 2-in-1 adapters that keep the phone charging.
+
+## Other boards
+
+Any board with a USB device port can play the NanoKVM's part. Only the NanoKVM is built and
+tested; the others are worked out on paper in [docs/hardware-options.md](docs/hardware-options.md):
+
+- **Raspberry Pi 4** — wired Ethernet, but its only gadget port (USB-C) is also its power input,
+  so it needs a USB-C power/data splitter to keep the phone's 5 V off the Pi.
+- **Pi Zero 2 W** — separate data and power ports; Wi-Fi only.
+- **Pico W / Pico 2 W** — no Linux: needs its own firmware (TinyUSB UAC2 + UDP over Wi-Fi), but
+  the phone can power it, so no splitter. An OTG 2-in-1 adapter lets a charger feed the phone.
+
+On the Linux boards `uac2scream.py` works as is; only the gadget setup has to be redone.
 
 ## Limits
 

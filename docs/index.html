@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <title>Hear your phone on your PC: a NanoKVM as a USB speaker that forwards audio over Scream</title>
-<meta name="description" content="Turn a Sipeed NanoKVM into a USB speaker for an Android phone and forward everything the phone plays, bit for bit, as Scream UDP packets to a receiver on your PC. 48 kHz 16-bit stereo PCM over the LAN, no Bluetooth, no re-encoding, two small scripts." />
+<meta name="description" content="Turn a Sipeed NanoKVM into a USB speaker for an Android phone and forward everything the phone plays, bit for bit, as Scream UDP packets to a receiver on your PC. 48 kHz 16-bit stereo PCM over the LAN, no Bluetooth, no re-encoding, two small scripts. Notes for a Raspberry Pi 4 with a USB-C power splitter, Pi Zero 2 W and Pico W." />
 <meta name="author" content="zirize" />
 <meta name="robots" content="index, follow" />
 <link rel="canonical" href="https://zirize.github.io/nanokvm-scream-bridge/" />
@@ -20,7 +20,7 @@
   "description": "How to make a Sipeed NanoKVM a USB Audio Class 1 speaker for a phone with Linux configfs, and forward the captured PCM as Scream UDP packets to a PC, without resampling or re-encoding.",
   "url": "https://zirize.github.io/nanokvm-scream-bridge/",
   "author": { "@type": "Person", "name": "zirize", "url": "https://github.com/zirize" },
-  "about": ["Sipeed NanoKVM", "Scream", "USB gadget", "configfs", "UAC1", "USB audio", "Android", "network audio", "PCM", "arecord"]
+  "about": ["Sipeed NanoKVM", "Raspberry Pi 4", "Raspberry Pi Pico W", "TinyUSB", "Scream", "USB gadget", "configfs", "UAC1", "USB audio", "Android", "network audio", "PCM", "arecord"]
 }
 </script>
 <style>
@@ -120,9 +120,25 @@ KVM_HOST=&lt;host&gt; tools/kvm-mode kvm                  # back to the normal K
 <li>The stock shutdown can hang in the NanoKVM's own service stop. Remount <code>/</code> and <code>/boot</code> read-only over ssh before pulling power.</li>
 </ul>
 
+<h2>Other boards: Pi&nbsp;4, Pi Zero&nbsp;2&nbsp;W, Pico&nbsp;W</h2>
+
+<p>Nothing here depends on the NanoKVM except the gadget setup. Any board with a USB <em>device</em> port can be the speaker. These are worked out from the hardware, <strong>not built yet</strong>:</p>
+
+<table>
+<tr><th>board</th><th>to the PC</th><th>phone-side wiring</th><th>software</th></tr>
+<tr><td>NanoKVM (tested)</td><td>Ethernet</td><td>plain USB-C cable</td><td>this repository</td></tr>
+<tr><td>Raspberry Pi&nbsp;4</td><td>Ethernet</td><td>USB-C power/data splitter</td><td>configfs gadget + the same <code>uac2scream.py</code></td></tr>
+<tr><td>Pi Zero&nbsp;2&nbsp;W</td><td>Wi-Fi</td><td>OTG cable to the data port</td><td>same as the Pi&nbsp;4</td></tr>
+<tr><td>Pico&nbsp;W / Pico&nbsp;2&nbsp;W</td><td>Wi-Fi</td><td>OTG cable; the phone powers it</td><td>new firmware: TinyUSB UAC2 + UDP</td></tr>
+</table>
+
+<p><strong>Pi&nbsp;4:</strong> the USB-C port is the only one that can be a gadget, and it is also the power input. A phone cannot power a Pi&nbsp;4, and two 5&nbsp;V sources on one rail is asking for trouble, so a <strong>USB-C power/data splitter</strong> sits in between: the Pi's supply goes to one side, the phone's data to the other. If the splitter's data port has no CC line, an <strong>OTG 2-in-1 adapter</strong> on the phone provides it and lets a charger keep the phone topped up at the same time.</p>
+
+<p><strong>Pico&nbsp;W:</strong> no Linux, so it needs firmware of its own, but the parts exist: TinyUSB has UAC2 speaker examples (one with an asynchronous feedback endpoint), and the Scream stream is only about 1.5&nbsp;Mbit/s of UDP over Wi-Fi. It draws so little that the phone can power it directly. Full details are in the <a href="https://github.com/zirize/nanokvm-scream-bridge/blob/main/docs/hardware-options.md">hardware notes</a>.</p>
+
 <h2>Why not a USB-to-USB box</h2>
 
-<p>The first idea was a box that is a USB speaker to the phone and a USB microphone to the PC. That needs two USB device controllers, and the NanoKVM and the Raspberry Pi&nbsp;4 have one each. Two RP2040 boards linked by I2S, or an STM32 with two OTG cores, could do it bit-perfectly. Sending Scream to the PC needs only one controller and reuses receivers that already exist. The <a href="https://github.com/zirize/nanokvm-scream-bridge/blob/main/docs/hardware-options.md">hardware notes</a> cover that choice and moving the bridge to a Pi&nbsp;4 (power splitters, OTG charge adapters).</p>
+<p>The first idea was a box that is a USB speaker to the phone and a USB microphone to the PC. That needs two USB device controllers, and the NanoKVM and the Raspberry Pi&nbsp;4 have one each. Two RP2040 boards linked by I2S, or an STM32 with two OTG cores, could do it bit-perfectly. Sending Scream to the PC needs only one controller and reuses receivers that already exist. The <a href="https://github.com/zirize/nanokvm-scream-bridge/blob/main/docs/hardware-options.md">hardware notes</a> cover that choice.</p>
 
 <h2>Tested on</h2>
 

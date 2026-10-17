@@ -22,6 +22,35 @@ drift is absorbed by the receiver (trim/pad or resample) instead of being avoide
 - Use a **USB-C power/data splitter** (`USB-C/PWR Splitter`, 8086 Consultancy design, ports
   printed `PWR` / `USB` / `RPI4`): Pi PSU -> `PWR`, Pi -> `RPI4`, phone -> `USB` (data only).
 
+## Other hosts at a glance
+
+Only the NanoKVM is built and measured. The rest is what the hardware allows; nothing below
+the first row has been run yet.
+
+| Host | Gadget port | Also the power input? | Network to the PC | Phone-side wiring | Software |
+|---|---|---|---|---|---|
+| NanoKVM (done) | USB-C | yes | wired | plain C-to-C cable | `nanokvm/` (UAC1, kernel 5.10) |
+| Pi 4 (planned) | USB-C | **yes** | wired | splitter (+ OTG 2-in-1 to charge the phone) | Linux configfs gadget + `arecord` + `uac2scream.py`, as on the NanoKVM |
+| Pi Zero 2 W | micro-USB `USB` (separate `PWR IN`) | no, separate port | Wi-Fi only | OTG cable/adapter | same Linux approach |
+| Pico W / Pico 2 W | micro-USB | yes, but a phone can power it | Wi-Fi only (2.4 GHz) | OTG cable/adapter; OTG 2-in-1 to charge the phone | **new firmware** (TinyUSB UAC2 + lwIP UDP), not written |
+
+- Linux boards reuse `uac2scream.py` unchanged; only the gadget setup (`S04usbaudio` is
+  NanoKVM-specific: it relies on the firmware's `g0` gadget and `S03usbdev`) has to be rewritten.
+- Pi Zero 2 W: the data port's VBUS is believed to be tied to the board's 5 V rail like on the
+  Pi 4, so a phone may back-feed it; not checked.
+
+## Pico W (RP2040 + CYW43439)
+
+- The RP2040 has one USB 1.1 full-speed device controller: enough for 48 kHz / 16 bit / stereo
+  (192 bytes per 1 ms frame). TinyUSB ships UAC2 speaker examples, including one with an
+  asynchronous feedback endpoint, so the Pico can pace the phone to its own crystal.
+- Scream over Wi-Fi is about 1.5 Mbit/s (1157-byte packets, 166.7 per second); lwIP UDP on the
+  CYW43439 handles that, but Wi-Fi jitter has to be absorbed by the receiver's buffer.
+- Power: the phone, as USB host, supplies VBUS; a Pico W draws tens of mA plus Wi-Fi (not
+  measured), so no external supply or splitter is needed. The phone's battery pays for it; an
+  OTG 2-in-1 adapter lets a charger feed the phone at the same time.
+- Nothing here exists yet: it needs its own firmware, not the scripts in this repo.
+
 ## Splitter and adapter findings (2026-10-17)
 
 - WeAct Studio "USB Power Splitter" (AliExpress 1005011968467720): schematic in the listing
