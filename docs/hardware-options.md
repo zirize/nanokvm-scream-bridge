@@ -9,9 +9,9 @@ That needs **two USB device controllers**. Pi 4 has one (only the USB-C port can
 the USB-A ports are host-only on the VL805). NanoKVM has one. Options that do have two:
 two RP2040 Picos linked by I2S, or an STM32 with OTG_FS + OTG_HS. Only that route can be
 bit-perfect (both sides async UAC, the bridge's clock as master).
-Using Scream for the PC side needs one device controller and reuses existing Scream receivers
-on the PC. Trade-off: no clock feedback from the receiver, so
-drift is absorbed by the receiver (trim/pad or resample) instead of being avoided.
+Using Scream for the PC side needs one device controller and reuses existing Scream receivers on
+the PC. Trade-off: no clock feedback from the receiver, so drift is absorbed by the receiver
+(trim/pad or resample) instead of being avoided.
 
 ## Pi 4 (planned permanent host)
 
