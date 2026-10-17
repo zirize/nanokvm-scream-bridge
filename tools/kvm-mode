@@ -1,0 +1,29 @@
+#!/bin/bash
+# Switch a NanoKVM between the stock KVM gadget and the phone-audio bridge, without reboot.
+# The choice persists across reboots (/boot/usb.audio).
+#   kvm-mode audio [host:port]   Scream receiver; default: SCREAM_DEST, else 192.168.1.10:4015
+#   kvm-mode kvm
+#   kvm-mode status
+# Device: KVM_HOST (default: kvm). Needs tools/install-nanokvm.sh run once on that device.
+set -euo pipefail
+
+HOST=${KVM_HOST:-kvm}
+DEST_DEFAULT=${SCREAM_DEST:-192.168.1.10:4015}
+run() { ssh -o BatchMode=yes -o ConnectTimeout=5 root@"$HOST" "$@"; }
+
+case "${1:-status}" in
+    audio)
+        dest=${2:-$DEST_DEFAULT}
+        run "echo $dest > /boot/usb.audio && sync && /etc/init.d/S04usbaudio restart"
+        ;;
+    kvm)
+        run "rm -f /boot/usb.audio && sync && /etc/init.d/S04usbaudio kvm"
+        ;;
+    status)
+        run "/etc/init.d/S04usbaudio status"
+        ;;
+    *)
+        echo "usage: kvm-mode {audio [host:port]|kvm|status}" >&2
+        exit 1
+        ;;
+esac

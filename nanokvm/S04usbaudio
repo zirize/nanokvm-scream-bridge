@@ -1,0 +1,121 @@
+#!/bin/sh
+# Audio-bridge mode for NanoKVM (installed by tools/install-nanokvm.sh).
+#
+# If /boot/usb.audio exists, the USB gadget becomes a UAC1 speaker (48 kHz, 16 bit, stereo,
+# no mic) and whatever the host (a phone) plays is forwarded as Scream UDP to the
+# "host:port" written in that file. Without the file this script does nothing and the
+# stock KVM gadget built by S03usbdev stays as it is.
+#
+# Runs after S03usbdev. Does not modify S03usbdev (firmware file).
+#   start    apply audio mode if the flag exists (boot, or after creating the flag)
+#   stop     stop the sender only; the gadget is left as is (rcK calls this at shutdown)
+#   restart  stop + start; the gadget is rebuilt only if it is not already audio-only
+#   kvm      stop the sender and rebuild the stock KVM gadget (used by tools/kvm-mode kvm)
+#   status   print mode, gadget functions, UDC state, sender pid
+
+FLAG=/boot/usb.audio
+G=/sys/kernel/config/usb_gadget/g0
+F=$G/functions/uac1.usb0
+SENDER=/usr/local/bin/uac2scream.py
+PIDFILE=/var/run/usbaudio.pid
+TAG=usbaudio
+
+log() { logger -t $TAG "$*"; echo "$TAG: $*"; }
+
+# The gadget is right when c.1 holds exactly one link, uac1.usb0, and a UDC is bound.
+gadget_ok() {
+    [ "$(ls $G/configs/c.1 | grep -c '\.')" = 1 ] &&
+    [ -L $G/configs/c.1/uac1.usb0 ] &&
+    [ -n "$(cat $G/UDC)" ]
+}
+
+gadget_audio() {
+    [ -d $G ] || { log "no gadget g0"; return 1; }
+    echo "" > $G/UDC
+    for l in $G/configs/c.1/*.*; do [ -L "$l" ] && rm "$l"; done
+    mkdir -p $F
+    echo 3 > $F/c_chmask
+    echo 48000 > $F/c_srate
+    echo 2 > $F/c_ssize
+    echo 0 > $F/p_chmask
+    echo "NanoKVM Audio" > $G/strings/0x409/product
+    ln -s $F $G/configs/c.1/
+    ls /sys/class/udc | cat > $G/UDC
+    log "gadget: uac1 only"
+}
+
+gadget_kvm() {
+    echo "" > $G/UDC
+    [ -L $G/configs/c.1/uac1.usb0 ] && rm $G/configs/c.1/uac1.usb0
+    [ -d $F ] && rmdir $F
+    /etc/init.d/S03usbdev start >/dev/null 2>&1
+    log "gadget: stock KVM"
+}
+
+dest() { tr -d '\r\n ' < $FLAG; }
+
+# Supervisor: re-applies the gadget if something (the NanoKVM app re-running S03usbdev)
+# rebuilt it, and restarts the capture->Scream pipe whenever it exits (phone unplugged,
+# card gone after a rebind).
+loop() {
+    d=$(dest)
+    host=${d%:*}
+    port=${d##*:}
+    while [ -e $FLAG ]; do
+        gadget_ok || gadget_audio
+        arecord -q -D hw:UAC1Gadget -f S16_LE -r 48000 -c 2 -t raw 2>/dev/null |
+            python3 $SENDER "$host" "$port" 2>/dev/null &
+        while [ -e $FLAG ] && pidof arecord >/dev/null && gadget_ok; do
+            sleep 5
+        done
+        killall -q arecord
+        sleep 1
+    done
+}
+
+start() {
+    [ -e $FLAG ] || exit 0
+    case "$(dest)" in
+        *:*) ;;
+        *) log "$FLAG must hold host:port"; exit 1 ;;
+    esac
+    [ -f $PIDFILE ] && kill -0 "$(cat $PIDFILE)" 2>/dev/null && { log "already running"; exit 0; }
+    gadget_ok || gadget_audio
+    setsid sh -c ". $0; loop" </dev/null >/dev/null 2>&1 &
+    echo $! > $PIDFILE
+    log "sender -> $(dest)"
+}
+
+stop() {
+    [ -f $PIDFILE ] && kill "$(cat $PIDFILE)" 2>/dev/null
+    rm -f $PIDFILE
+    killall -q arecord
+}
+
+kvm() {
+    stop
+    [ -L $G/configs/c.1/uac1.usb0 ] && gadget_kvm
+}
+
+status() {
+    if [ -e $FLAG ]; then echo "mode: audio -> $(dest)"; else echo "mode: kvm"; fi
+    echo "functions: $(ls $G/configs/c.1 | grep '\.' | tr '\n' ' ')"
+    echo "udc: $(cat /sys/class/udc/*/state)"
+    if [ -f $PIDFILE ] && kill -0 "$(cat $PIDFILE)" 2>/dev/null; then
+        echo "sender: running (pid $(cat $PIDFILE))"
+    else
+        echo "sender: stopped"
+    fi
+}
+
+# Sourced by the supervisor ('. $0; loop'): define functions only.
+[ "${1:-}" ] || return 0 2>/dev/null
+
+case "$1" in
+    start) start ;;
+    stop) stop ;;
+    restart) stop; start ;;
+    kvm) kvm ;;
+    status) status ;;
+    *) echo "usage: $0 {start|stop|restart|kvm|status}"; exit 1 ;;
+esac
